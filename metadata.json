@@ -1,0 +1,8 @@
+{
+  "name": "Uzum Studio Task Manager",
+  "description": "A comprehensive task management system for the Uzum Market photo studio, featuring role-based access, time tracking, and profile management.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}

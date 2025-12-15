@@ -1,0 +1,122 @@
+
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Uzum Studio Manager</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- PDF Libs -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              uzum: {
+                50: '#f5f3ff',
+                100: '#ede9fe',
+                500: '#8b5cf6',
+                600: '#7024C4',
+                700: '#6d28d9',
+                900: '#4c1d95',
+              },
+              dark: {
+                  bg: '#111827',
+                  surface: '#1f2937',
+                  border: '#374151',
+                  text: '#f3f4f6',
+                  muted: '#9ca3af'
+              }
+            },
+            fontFamily: {
+              travels: ['"Travels TT"', 'Outfit', 'sans-serif'],
+            },
+            animation: {
+                'shake': 'shake 0.5s cubic-bezier(.36,.07,.19,.97) both infinite',
+                'message-pop': 'message-pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards',
+                'fade-in': 'fadeIn 0.3s ease-in-out',
+                'scale-in': 'scaleIn 0.2s ease-out',
+                'slide-in-right': 'slideInRight 0.3s ease-out'
+            },
+            keyframes: {
+                shake: {
+                    '0%, 100%': { transform: 'translate3d(0, 0, 0)' },
+                    '10%, 90%': { transform: 'translate3d(-5px, -5px, 0)' },
+                    '20%, 80%': { transform: 'translate3d(5px, 5px, 0)' },
+                    '30%, 50%, 70%': { transform: 'translate3d(-10px, 5px, 0)' },
+                    '40%, 60%': { transform: 'translate3d(10px, -10px, 0)' }
+                },
+                'message-pop': {
+                    '0%': { opacity: '0', transform: 'scale(0.9) translateY(10px)' },
+                    '100%': { opacity: '1', transform: 'scale(1) translateY(0)' }
+                },
+                fadeIn: {
+                    '0%': { opacity: '0' },
+                    '100%': { opacity: '1' }
+                },
+                scaleIn: {
+                    '0%': { opacity: '0', transform: 'scale(0.95)' },
+                    '100%': { opacity: '1', transform: 'scale(1)' }
+                },
+                slideInRight: {
+                    '0%': { transform: 'translateX(100%)', opacity: '0' },
+                    '100%': { transform: 'translateX(0)', opacity: '1' }
+                }
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+      body {
+        font-family: "Travels TT", "Outfit", sans-serif;
+        background-color: #f8f9fa;
+      }
+      .dark body {
+          background-color: #111827;
+      }
+      ::-webkit-scrollbar { width: 8px; height: 8px; }
+      ::-webkit-scrollbar-track { background: #f1f1f1; }
+      .dark ::-webkit-scrollbar-track { background: #1f2937; }
+      ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+      .dark ::-webkit-scrollbar-thumb { background: #4b5563; }
+      ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+      .bass-boosted {
+          animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both infinite;
+          filter: contrast(1.5) hue-rotate(90deg);
+      }
+    </style>
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@^19.2.3",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "lucide-react": "https://esm.sh/lucide-react@^0.561.0",
+    "firebase/": "https://esm.sh/firebase@^12.6.0/",
+    "vite": "https://esm.sh/vite@^7.2.7",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
+    "xlsx": "https://esm.sh/xlsx@^0.18.5",
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@^2.87.1"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/index.tsx"></script>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>
