@@ -1,15 +1,15 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { User, AppNotification, UserRole, AppSettings } from './types';
-import { StorageService } from './services/storage';
-import Auth from './components/Auth';
-import TaskBoard from './components/TaskBoard';
-import ProfileModal from './components/ProfileModal';
-import GlobalChat from './components/GlobalChat';
-import TeamKPI from './components/TeamKPI';
-import DeveloperPanel from './components/DeveloperPanel';
-import AboutModal, { APP_VERSION } from './components/AboutModal';
-import { LogOut, Settings, Bell, AlertTriangle, GripVertical, Users, AlarmClock, MessageSquare, X, Layers, Volume2, VolumeX, BarChart2, CheckCircle2, Moon, Sun, PanelLeftClose, PanelLeftOpen, ChevronLeft, ChevronRight, HelpCircle } from 'lucide-react';
+import { User, AppNotification, UserRole, AppSettings } from '../types';
+import { StorageService } from '../services/storage';
+import Auth from './Auth';
+import TaskBoard from './TaskBoard';
+import ProfileModal from './ProfileModal';
+import GlobalChat from './GlobalChat';
+import TeamKPI from './TeamKPI';
+import DeveloperPanel from './DeveloperPanel';
+import AboutModal, { APP_VERSION } from './AboutModal';
+import { LogOut, Settings, Bell, AlertTriangle, Users, AlarmClock, MessageSquare, X, Layers, Volume2, VolumeX, BarChart2, Moon, Sun, ChevronLeft, ChevronRight, HelpCircle } from 'lucide-react';
 
 interface ToastProps {
   notification: AppNotification;
@@ -48,12 +48,13 @@ const Toast: React.FC<ToastProps> = ({ notification, onClose }) => {
 
 function App() {
   const [user, setUser] = useState<User | null>(null);
+  const [isInitializing, setIsInitializing] = useState(true);
   
   // Sidebar State
   const [sidebarWidth, setSidebarWidth] = useState(320);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
-  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false); // Mobile state
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false); 
   
   // Views Navigation State
   const [currentView, setCurrentView] = useState<'tasks' | 'kpi'>('tasks');
@@ -64,53 +65,56 @@ function App() {
   const [showAboutModal, setShowAboutModal] = useState(false);
   const [isUpdateMessage, setIsUpdateMessage] = useState(false);
   
-  // Direct Chat
   const [directChatUser, setDirectChatUser] = useState<User | null>(null);
+  const [users, setUsers] = useState<User[]>([]);
 
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [isShaking, setIsShaking] = useState(false);
 
-  // Stats
   const [taskCount, setTaskCount] = useState(0);
-
-  // Sound Settings
   const [isSoundEnabled, setIsSoundEnabled] = useState(true);
-  
-  // Dark Mode
   const [isDarkMode, setIsDarkMode] = useState(StorageService.getTheme());
+  const [appSettings, setAppSettings] = useState<AppSettings>({} as AppSettings);
 
-  // GLOBAL APP SETTINGS (Developer Mode)
-  const [appSettings, setAppSettings] = useState<AppSettings>(StorageService.getAppSettings());
-
-  // Logo Dragging State
   const [isDraggingLogo, setIsDraggingLogo] = useState(false);
   const logoDragStart = useRef({ x: 0, y: 0 });
   const logoStartPos = useRef({ x: 0, y: 0 });
 
   useEffect(() => {
-    try {
-        const currentUser = StorageService.getCurrentUser();
-        if (currentUser) {
-          setUser(currentUser);
-        }
-        const savedSound = localStorage.getItem('uzum_sound_enabled');
-        if (savedSound !== null) {
-            setIsSoundEnabled(savedSound === 'true');
-        }
-        setAppSettings(StorageService.getAppSettings());
+    const init = async () => {
+        try {
+            const currentUser = await StorageService.getCurrentUser();
+            if (currentUser) {
+              setUser(currentUser);
+            }
+            const savedSound = localStorage.getItem('uzum_sound_enabled');
+            if (savedSound !== null) {
+                setIsSoundEnabled(savedSound === 'true');
+            }
+            
+            const settings = await StorageService.getAppSettings();
+            setAppSettings(settings);
 
-        // Version Check
-        const lastVersion = localStorage.getItem('uzum_app_version');
-        if (lastVersion !== APP_VERSION && !appSettings.disableChangelog) {
-            setIsUpdateMessage(true);
-            setShowAboutModal(true);
-            localStorage.setItem('uzum_app_version', APP_VERSION);
-        } else if (lastVersion !== APP_VERSION) {
-            localStorage.setItem('uzum_app_version', APP_VERSION);
+            const lastVersion = localStorage.getItem('uzum_app_version');
+            if (lastVersion !== APP_VERSION && !settings.disableChangelog) {
+                setIsUpdateMessage(true);
+                setShowAboutModal(true);
+                localStorage.setItem('uzum_app_version', APP_VERSION);
+            } else if (lastVersion !== APP_VERSION) {
+                localStorage.setItem('uzum_app_version', APP_VERSION);
+            }
+            
+            // Load users initially for sidebar
+            const u = await StorageService.getUsers();
+            setUsers(u);
+
+        } catch (e) {
+            console.error("Initialization error:", e);
+        } finally {
+            setIsInitializing(false);
         }
-    } catch (e) {
-        console.error("Initialization error:", e);
-    }
+    };
+    init();
   }, []);
 
   useEffect(() => {
@@ -134,53 +138,17 @@ function App() {
 
   useEffect(() => {
       if (!user) return;
-      StorageService.updateUserActivity(user.id);
+      
+      const poll = setInterval(async () => {
+          await StorageService.updateUserActivity(user.id);
+          const u = await StorageService.getUsers();
+          setUsers(u);
 
-      const poll = setInterval(() => {
-          StorageService.updateUserActivity(user.id);
-
-          const newNotifs = StorageService.getNotifications(user.id);
-          if (newNotifs.length > 0) {
-              setNotifications(prev => {
-                  const existingIds = new Set(prev.map(n => n.id));
-                  const reallyNew = newNotifs.filter(n => !existingIds.has(n.id));
-                  if (reallyNew.length > 0 && isSoundEnabled) {
-                      const audio = new Audio(appSettings.notificationSound);
-                      audio.volume = 0.5;
-                      audio.play().catch(() => {});
-                      return [...prev, ...reallyNew];
-                  } else if (reallyNew.length > 0) {
-                      return [...prev, ...reallyNew];
-                  }
-                  return prev;
-              });
-              newNotifs.forEach(n => StorageService.markNotificationRead(n.id));
-          }
-
-          const call = StorageService.checkWakeUp(user.id);
-          if (call) {
-              setIsShaking(true);
-              if (isSoundEnabled) {
-                const alarm = new Audio(appSettings.alarmSound);
-                alarm.volume = 1.0;
-                alarm.play().catch(() => {});
-              }
-              setNotifications(prev => [...prev, {
-                  id: `wake_${Date.now()}`,
-                  userId: user.id,
-                  message: `${call.senderName} БУДИТ ВАС!!!!`,
-                  type: 'alert',
-                  isRead: true,
-                  timestamp: Date.now()
-              }]);
-              setTimeout(() => setIsShaking(false), 5000);
-          }
-
-          const tasks = StorageService.getTasks();
+          const tasks = await StorageService.getTasks();
           const activeCount = tasks.filter(t => t.status !== 'done' && t.status !== 'canceled').length;
           setTaskCount(activeCount);
 
-      }, 5000); // Polling frequency
+      }, 5000); 
       return () => clearInterval(poll);
   }, [user, isSoundEnabled, appSettings]);
 
@@ -208,26 +176,17 @@ function App() {
   useEffect(() => {
       const handleMouseMove = (e: MouseEvent) => {
           if (isDraggingLogo) {
-              // Calculate delta
               const dx = e.clientX - logoDragStart.current.x;
               const dy = e.clientY - logoDragStart.current.y;
-              
-              // Apply delta to initial start pos
               const newX = logoStartPos.current.x + dx;
               const newY = logoStartPos.current.y + dy;
-
-              setAppSettings(prev => ({
-                  ...prev,
-                  logoX: newX,
-                  logoY: newY
-              }));
+              setAppSettings(prev => ({ ...prev, logoX: newX, logoY: newY }));
           }
       };
 
       const handleMouseUp = () => {
           if (isDraggingLogo) {
               setIsDraggingLogo(false);
-              // Save final position to storage
               StorageService.saveAppSettings(appSettings);
           }
       };
@@ -243,7 +202,6 @@ function App() {
   }, [isDraggingLogo, appSettings]);
 
   const startLogoDrag = (e: React.MouseEvent) => {
-      // Only allow drag if developer
       if (user?.role !== UserRole.DEVELOPER) return;
       e.preventDefault();
       setIsDraggingLogo(true);
@@ -253,9 +211,9 @@ function App() {
 
   const handleLogin = (loggedInUser: User) => {
     const updatedUser = { ...loggedInUser, onlineSince: Date.now(), lastActive: Date.now() };
-    StorageService.saveUser(updatedUser);
-    StorageService.setCurrentUser(updatedUser);
     setUser(updatedUser);
+    StorageService.saveUser(updatedUser); 
+    StorageService.setCurrentUser(updatedUser);
   };
 
   const handleLogout = () => {
@@ -270,8 +228,8 @@ function App() {
     }
   };
 
-  const openProfile = (userId: string) => {
-      const foundUser = StorageService.getUserById(userId);
+  const openProfile = async (userId: string) => {
+      const foundUser = await StorageService.getUserById(userId);
       if (foundUser) setProfileModalUser(foundUser);
   };
 
@@ -295,7 +253,7 @@ function App() {
   };
   
   const handleChatNotification = (notification: AppNotification) => {
-      StorageService.addNotification(notification);
+      // StorageService.addNotification(notification); 
   };
 
   const sendWakeUp = (targetUser: User) => {
@@ -308,7 +266,7 @@ function App() {
   const startDirectChat = (targetUser: User) => {
       setDirectChatUser(targetUser);
       setShowTeamModal(false);
-      setIsMobileSidebarOpen(true); // Ensure sidebar opens on mobile if chatting
+      setIsMobileSidebarOpen(true); 
   };
 
   const getChatId = (u1: string, u2: string) => {
@@ -321,6 +279,10 @@ function App() {
       return n.toString();
   };
 
+  if (isInitializing) {
+      return <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center text-gray-500">Загрузка...</div>;
+  }
+
   if (!user) {
     return <Auth onLogin={handleLogin} onToggleTheme={toggleTheme} isDarkMode={isDarkMode} />;
   }
@@ -328,7 +290,6 @@ function App() {
   const isNatalya = user.login === 'Natalya Pak';
   const isDeveloper = user.role === UserRole.DEVELOPER;
   const isManager = user.isAdmin || user.role === UserRole.MANAGER || isNatalya || isDeveloper;
-  const allUsers = StorageService.getUsers();
 
   const logoFillColor = isDarkMode ? '#ffffff' : (appSettings.logoColor || '#7000ff');
 
@@ -346,22 +307,13 @@ function App() {
           <Toast key={n.id} notification={n} onClose={() => setNotifications(prev => prev.filter(x => x.id !== n.id))} />
       ))}
 
-      {/* Mobile Sidebar Overlay */}
       {isMobileSidebarOpen && (
-          <div 
-            className="fixed inset-0 bg-black/50 z-40 md:hidden"
-            onClick={() => setIsMobileSidebarOpen(false)}
-          ></div>
+          <div className="fixed inset-0 bg-black/50 z-40 md:hidden" onClick={() => setIsMobileSidebarOpen(false)}></div>
       )}
 
       <aside 
         style={{ width: isSidebarCollapsed ? '80px' : `${sidebarWidth}px` }}
-        className={`
-            fixed inset-y-0 left-0 z-50 transform transition-transform duration-300
-            ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
-            md:relative md:translate-x-0 md:flex
-            bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex-col h-full flex-shrink-0 group/sidebar
-        `}
+        className={`fixed inset-y-0 left-0 z-50 transform transition-transform duration-300 ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:relative md:translate-x-0 md:flex bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex-col h-full flex-shrink-0 group/sidebar`}
       >
         <div className={`p-4 border-b border-gray-100 dark:border-gray-700 flex ${isSidebarCollapsed ? 'justify-center' : 'justify-between'} items-center shrink-0 h-24 transition-all`}>
            {!isSidebarCollapsed ? (
@@ -373,20 +325,15 @@ function App() {
                         transformOrigin: 'center left'
                     }}
                >
-                    <svg 
-                        id="Layer_1" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 1080 1080" 
-                        className="h-full w-auto select-none pointer-events-none"
-                    >
-                      <style>
-                        {`.st0 { fill: ${logoFillColor}; }`}
-                      </style>
+                    <svg id="Layer_1" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 1080 1080" className="h-full w-auto select-none pointer-events-none">
+                      <style>{`.st0 { fill: ${logoFillColor}; }`}</style>
                       <path className="st0" d="M353.57,575.95c.06,22.56-6.58,44.62-19.07,63.41-12.49,18.78-30.28,33.44-51.1,42.11-20.82,8.67-43.75,10.97-65.88,6.6-22.13-4.37-42.47-15.2-58.44-31.13-15.97-15.93-26.86-36.24-31.28-58.36-4.42-22.12-2.18-45.05,6.44-65.9,8.62-20.85,23.23-38.67,41.98-51.2,18.75-12.54,40.8-19.23,63.36-19.23,14.95-.03,29.77,2.89,43.59,8.6,13.82,5.7,26.39,14.07,36.98,24.63,10.59,10.56,18.99,23.1,24.72,36.91,5.74,13.81,8.69,28.61,8.7,43.57h0ZM252.67,501.73c-4.26-.4-8.65-.56-13.09-.56s-8.75.16-13.03.56v60.64h26.14l-.02-60.64ZM312.98,537.07c-9.53-3.12-19.26-5.57-29.13-7.32v50.88c0,36.65-15.58,55.93-44.23,55.93s-44.23-19.28-44.23-55.93v-50.88c-9.87,1.76-19.6,4.2-29.13,7.32v43.87c.63,19.04,8.64,37.09,22.33,50.34,13.69,13.25,32,20.65,51.05,20.65s37.36-7.41,51.05-20.65c13.69-13.25,21.7-31.3,22.33-50.34l-.04-43.87Z"/>
                       <path className="st0" d="M722.03,579.77c0,14.78-8.34,21.61-20.78,21.61s-20.47-6.7-20.47-21.61v-48.79h-26.8v49.73c0,32.4,27.11,45.1,47.48,45.1s47.51-12.7,47.51-45.1v-49.73h-26.8l-.13,48.79Z"/>
                       <path className="st0" d="M631.29,553.63v-22.65h-87.12v22.65h51.57l-53.65,47.82v22.65h92.45v-22.65h-56.8l53.54-47.82Z"/>
                       <path className="st0" d="M883.17,529.21c-16.99,0-29.79,6.9-36.12,17.42-6.47-10.52-20.51-17.42-35.08-17.42-28.65,0-43.56,18.26-43.56,40.81v54.08h26.81v-50.26c0-10.79,5.66-20.27,18.66-20.27,2.65-.16,5.3.25,7.78,1.2,2.48.95,4.73,2.41,6.6,4.29,1.87,1.88,3.32,4.14,4.26,6.63.93,2.49,1.33,5.14,1.16,7.79v50.66h26.81v-50.7c0-10.82,6.37-19.9,19.23-19.9s19.07,9.48,19.07,20.27v50.26h26.8v-53.98c0-22.55-13.84-40.81-42.65-40.81l.23-.07Z"/>
                       <path className="st0" d="M497.62,579.77c0,14.78-8.34,21.61-20.67,21.61s-20.57-6.7-20.57-21.61v-48.79h-26.81v49.73c0,32.4,27.01,45.1,47.48,45.1s47.41-12.7,47.41-45.1v-49.73h-26.81l-.03,48.79Z"/>
-                    </svg>
-               </div>
+                </svg>
+            </div>
            ) : (
                 <div className="w-10 h-10 transition-all duration-300">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1080" className="w-full h-full">
@@ -394,22 +341,13 @@ function App() {
                     </svg>
                 </div>
            )}
-           {/* Hide collapse button on mobile */}
            <button 
                 onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)} 
                 className="hidden md:block p-1.5 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:text-uzum-600 hover:bg-uzum-50 dark:hover:bg-gray-600 transition"
-                title={isSidebarCollapsed ? "Развернуть" : "Свернуть"}
            >
                {isSidebarCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
            </button>
-           
-           {/* Close Button Mobile */}
-           <button 
-                onClick={() => setIsMobileSidebarOpen(false)} 
-                className="md:hidden p-1.5 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-500"
-           >
-               <ChevronLeft size={24} />
-           </button>
+           <button onClick={() => setIsMobileSidebarOpen(false)} className="md:hidden p-1.5 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-500"><ChevronLeft size={24} /></button>
         </div>
 
         <nav className="flex-1 p-3 flex flex-col gap-2 overflow-hidden">
@@ -431,7 +369,6 @@ function App() {
                             {formatCount(taskCount)}
                         </span>
                     )}
-                    {isSidebarCollapsed && <div className="absolute left-full ml-2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap z-50 pointer-events-none">Задачи</div>}
                 </button>
                 <button 
                     onClick={() => {
@@ -442,7 +379,6 @@ function App() {
                 >
                     <Users size={20} />
                     {!isSidebarCollapsed && <span>Наша команда</span>}
-                    {isSidebarCollapsed && <div className="absolute left-full ml-2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap z-50 pointer-events-none">Команда</div>}
                 </button>
                 {isManager && (
                     <button 
@@ -455,12 +391,10 @@ function App() {
                     >
                         <BarChart2 size={20} />
                         {!isSidebarCollapsed && <span>KPI Команды</span>}
-                        {isSidebarCollapsed && <div className="absolute left-full ml-2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap z-50 pointer-events-none">KPI</div>}
                     </button>
                 )}
              </div>
              
-             {/* Chat container hidden when collapsed */}
              <div className={`flex-1 min-h-0 flex flex-col pt-2 border-t border-gray-100 dark:border-gray-700 mt-2 ${isSidebarCollapsed ? 'hidden' : 'flex'}`}>
                 {directChatUser ? (
                     <div className="flex flex-col h-full">
@@ -514,60 +448,20 @@ function App() {
                     </button>
                 )}
 
-                <button 
-                    onClick={() => setProfileModalUser(user)}
-                    className={`flex items-center justify-center gap-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-uzum-300 hover:text-uzum-600 text-gray-600 dark:text-gray-300 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm ${isSidebarCollapsed ? 'hidden' : ''}`}
-                    title="Настройки профиля"
-                >
-                    <Settings size={16} />
-                </button>
-                <button 
-                    onClick={toggleSound}
-                    className={`flex items-center justify-center bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm ${!isSoundEnabled ? 'text-red-500 border-red-200' : 'text-gray-600 dark:text-gray-300 hover:text-uzum-600'}`}
-                    title={isSoundEnabled ? "Выключить звук" : "Включить звук"}
-                >
-                    {isSoundEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
-                </button>
-                <button 
-                    onClick={toggleTheme}
-                    className="flex items-center justify-center bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:text-uzum-600 text-gray-600 dark:text-gray-300 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm"
-                    title={isDarkMode ? "Светлая тема" : "Темная тема"}
-                >
-                    {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
-                </button>
-                <button 
-                    onClick={() => { setIsUpdateMessage(false); setShowAboutModal(true); }}
-                    className="flex items-center justify-center bg-uzum-100 text-uzum-600 dark:bg-gray-700 dark:text-white hover:bg-uzum-200 dark:hover:bg-gray-600 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm"
-                    title="О приложении"
-                >
-                    <HelpCircle size={16} />
-                </button>
-                <button 
-                    onClick={handleLogout}
-                    className="flex items-center justify-center bg-red-50 text-red-500 border border-red-100 dark:bg-red-900/20 dark:border-red-900 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm"
-                    title="Выйти"
-                >
-                    <LogOut size={16} />
-                </button>
+                <button onClick={() => setProfileModalUser(user)} className={`flex items-center justify-center gap-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-uzum-300 hover:text-uzum-600 text-gray-600 dark:text-gray-300 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm ${isSidebarCollapsed ? 'hidden' : ''}`}><Settings size={16} /></button>
+                <button onClick={toggleSound} className={`flex items-center justify-center bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm ${!isSoundEnabled ? 'text-red-500 border-red-200' : 'text-gray-600 dark:text-gray-300 hover:text-uzum-600'}`}>{isSoundEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}</button>
+                <button onClick={toggleTheme} className="flex items-center justify-center bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:text-uzum-600 text-gray-600 dark:text-gray-300 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm">{isDarkMode ? <Sun size={16} /> : <Moon size={16} />}</button>
+                <button onClick={() => { setIsUpdateMessage(false); setShowAboutModal(true); }} className="flex items-center justify-center bg-uzum-100 text-uzum-600 dark:bg-gray-700 dark:text-white hover:bg-uzum-200 dark:hover:bg-gray-600 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm"><HelpCircle size={16} /></button>
+                <button onClick={handleLogout} className="flex items-center justify-center bg-red-50 text-red-500 border border-red-100 dark:bg-red-900/20 dark:border-red-900 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm"><LogOut size={16} /></button>
             </div>
-            
-            {!isSidebarCollapsed && (
-                <div className="mt-2 flex justify-center items-center text-[10px] text-gray-400">
-                    <span>v{APP_VERSION}</span>
-                </div>
-            )}
+            {!isSidebarCollapsed && (<div className="mt-2 flex justify-center items-center text-[10px] text-gray-400"><span>v{APP_VERSION}</span></div>)}
         </div>
         
         {!isSidebarCollapsed && (
-            <div 
-                className="absolute right-0 top-0 bottom-0 w-1 cursor-ew-resize hover:bg-uzum-500 transition-colors z-20 hidden md:block"
-                onMouseDown={() => setIsResizing(true)}
-            >
-            </div>
+            <div className="absolute right-0 top-0 bottom-0 w-1 cursor-ew-resize hover:bg-uzum-500 transition-colors z-20 hidden md:block" onMouseDown={() => setIsResizing(true)}></div>
         )}
       </aside>
 
-      {/* Main Content Area */}
       <main className="flex-1 overflow-y-auto h-full relative bg-gray-50 dark:bg-gray-900 transition-all duration-300">
           {currentView === 'tasks' ? (
               <TaskBoard 
@@ -580,23 +474,11 @@ function App() {
                 onToggleMobileSidebar={() => setIsMobileSidebarOpen(true)}
               />
           ) : (
-              <TeamKPI 
-                onClose={() => setCurrentView('tasks')} 
-              />
+              <TeamKPI onClose={() => setCurrentView('tasks')} />
           )}
       </main>
 
-      {/* Modals */}
-      {profileModalUser && (
-        <ProfileModal 
-          viewingUser={profileModalUser} 
-          currentUser={user} 
-          isOpen={!!profileModalUser} 
-          onClose={() => setProfileModalUser(null)}
-          onUpdate={handleUserUpdate}
-        />
-      )}
-
+      {profileModalUser && (<ProfileModal viewingUser={profileModalUser} currentUser={user} isOpen={!!profileModalUser} onClose={() => setProfileModalUser(null)} onUpdate={handleUserUpdate}/>)}
       {showTeamModal && (
           <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
               <div className="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-md shadow-xl overflow-hidden flex flex-col max-h-[80vh]">
@@ -605,27 +487,16 @@ function App() {
                       <button onClick={() => setShowTeamModal(false)}><X className="text-gray-500 dark:text-gray-400"/></button>
                   </div>
                   <div className="overflow-y-auto p-2">
-                      {allUsers.map(u => (
+                      {users.map(u => (
                           <div key={u.id} className="flex items-center gap-3 p-3 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-xl cursor-pointer transition" onClick={() => openProfile(u.id)}>
                               <img src={u.avatar} className="w-10 h-10 rounded-full border border-gray-200 dark:border-gray-600 object-cover"/>
                               <div className="flex-1">
                                   <p className="font-bold text-sm text-gray-900 dark:text-white">{u.displayName}</p>
                                   <p className="text-xs text-gray-500 dark:text-gray-400">{u.role}</p>
                               </div>
-                              <button 
-                                onClick={(e) => { e.stopPropagation(); startDirectChat(u); }}
-                                className="p-2 bg-uzum-50 dark:bg-gray-600 text-uzum-600 dark:text-white rounded-lg hover:bg-uzum-100 dark:hover:bg-gray-500 transition"
-                              >
-                                  <MessageSquare size={16}/>
-                              </button>
+                              <button onClick={(e) => { e.stopPropagation(); startDirectChat(u); }} className="p-2 bg-uzum-50 dark:bg-gray-600 text-uzum-600 dark:text-white rounded-lg hover:bg-uzum-100 dark:hover:bg-gray-500 transition"><MessageSquare size={16}/></button>
                               {isManager && u.id !== user.id && (
-                                  <button 
-                                    onClick={(e) => { e.stopPropagation(); sendWakeUp(u); }}
-                                    className="p-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/40 transition"
-                                    title="БУДИЛЬНИК!"
-                                  >
-                                      <AlarmClock size={16}/>
-                                  </button>
+                                  <button onClick={(e) => { e.stopPropagation(); sendWakeUp(u); }} className="p-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/40 transition" title="БУДИЛЬНИК!"><AlarmClock size={16}/></button>
                               )}
                           </div>
                       ))}
@@ -633,24 +504,8 @@ function App() {
               </div>
           </div>
       )}
-
-      {/* About / Update Modal */}
-      {showAboutModal && (
-          <AboutModal 
-            isOpen={showAboutModal} 
-            onClose={() => setShowAboutModal(false)}
-            isUpdateMessage={isUpdateMessage}
-          />
-      )}
-
-      {/* DEVELOPER PANEL */}
-      {isDeveloper && (
-          <DeveloperPanel 
-            onSettingsChange={setAppSettings}
-            currentSettings={appSettings}
-          />
-      )}
-
+      {showAboutModal && (<AboutModal isOpen={showAboutModal} onClose={() => setShowAboutModal(false)} isUpdateMessage={isUpdateMessage} />)}
+      {isDeveloper && (<DeveloperPanel onSettingsChange={setAppSettings} currentSettings={appSettings}/>)}
     </div>
   );
 }

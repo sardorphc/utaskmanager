@@ -110,9 +110,12 @@
   }
 }
 </script>
+<link rel="stylesheet" href="/index.css">
 </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="./src/index.tsx"></script>
-  </body>
+    <!-- Ищем index.tsx в текущей папке, так как src нет -->
+    <script type="module" src="./index.tsx"></script>
+  <script type="module" src="/index.tsx"></script>
+</body>
 </html>

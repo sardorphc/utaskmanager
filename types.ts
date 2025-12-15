@@ -17,8 +17,8 @@ export interface ProfileComment {
 }
 
 export interface WorkShift {
-    date: string; // ISO Date string (YYYY-MM-DD)
-    skuCount: number; // Snapshot of SKU for that day
+    date: string; 
+    skuCount: number; 
 }
 
 export interface AppSettings {
@@ -28,11 +28,11 @@ export interface AppSettings {
     messageSound: string;
     logoScale: number;
     logoColor: string;
-    logoX: number; // New: X Position
-    logoY: number; // New: Y Position
-    devButtonX?: number; // Developer Button X
-    devButtonY?: number; // Developer Button Y
-    disableChangelog?: boolean; // New: Disable update popup
+    logoX: number;
+    logoY: number;
+    devButtonX?: number;
+    devButtonY?: number;
+    disableChangelog?: boolean;
 }
 
 export interface User {
@@ -46,11 +46,9 @@ export interface User {
   age?: number;
   isAdmin: boolean;
   profileComments?: ProfileComment[];
-  workShifts?: Record<string, WorkShift>; // Key is date string
-  
-  // Status fields
-  onlineSince?: number; // Timestamp when they logged in
-  lastActive?: number; // Timestamp of last heartbeat
+  workShifts?: Record<string, WorkShift>;
+  onlineSince?: number;
+  lastActive?: number;
 }
 
 export interface Comment {
@@ -84,21 +82,18 @@ export interface Task {
   status: TaskStatus;
   category: TaskCategory; 
   infographicTariff?: InfographicTariff; 
+  is1P?: boolean; // New 1P Flag
   slides?: TaskSlide[]; 
-  
-  skuQuantity: number; // Total required
-  completedSku: number; // Currently done
-  skuHistory?: SkuLog[]; // History of completion for KPI
-
+  skuQuantity: number;
+  completedSku: number;
+  skuHistory?: SkuLog[];
   productId?: string;
   barcodes?: string[];
-  completedBarcodes?: string[]; // List of specific barcodes that are done
-  sourceLink?: string; // Link to source files
-  resultLink?: string; // Link to finished work
-
-  assigneeId?: string; // Deprecated, kept for backward compatibility
-  assigneeIds?: string[]; // New: Multiple assignees
-  
+  completedBarcodes?: string[];
+  sourceLink?: string; 
+  resultLink?: string; 
+  assigneeId?: string;
+  assigneeIds?: string[];
   creatorId: string;
   deadline: string;
   timeSpentSeconds: number;
@@ -127,7 +122,7 @@ export interface ChatMessage {
     text: string;
     senderId: string; 
   };
-  deletedFor?: string[]; // User IDs who deleted this message for themselves
+  deletedFor?: string[]; 
 }
 
 export interface AppNotification {
@@ -159,7 +154,7 @@ export interface ChatSettings {
     fontSize: number;
     bgType: 'color' | 'image';
     bgColor: string;
-    bgImage?: string; // Base64
+    bgImage?: string; 
     bgBlur: number;
-    isAdaptive: boolean; // New flag for auto dark/light switching
+    isAdaptive: boolean; 
 }
